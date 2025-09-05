@@ -3,106 +3,98 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 let ctx = canvas.getContext("2d");
 
-// Clase Vector simple
 class Vector {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-  add(v) {
-    return new Vector(this.x + v.x, this.y + v.y);
-  }
-  subtract(v) {
-    return new Vector(this.x - v.x, this.y - v.y);
-  }
-  scale(s) {
-    return new Vector(this.x * s, this.y * s);
-  }
+  constructor(x, y) { this.x = x; this.y = y; }
+  add(v) { return new Vector(this.x + v.x, this.y + v.y); }
+  subtract(v) { return new Vector(this.x - v.x, this.y - v.y); }
+  scale(s) { return new Vector(this.x * s, this.y * s); }
 }
 
 let origin = new Vector(canvas.width / 2, canvas.height / 2);
 let io = { mouse: origin };
-
 canvas.addEventListener("mousemove", e => {
   io.mouse = new Vector(e.clientX, e.clientY);
 });
 
-// Polar function para corazón
-let polar = (rad, time, center) => {
+// Polar corazón (más pequeño)
+let polar = (rad, time, center, size=5) => {
   let x = 16 * Math.sin(rad) ** 3;
-  let y = 13 * Math.cos(rad)
-        - 5 * Math.cos(2 * rad)
-        - 2 * Math.cos(3 * rad)
-        - Math.cos(4 * rad);
-
-  y *= -1; // corregir eje Y
-
+  let y = 13 * Math.cos(rad) - 5 * Math.cos(2 * rad) - 2 * Math.cos(3 * rad) - Math.cos(4 * rad);
+  y *= -1;
   let beat = Math.sin(time / 200) * 0.1 + 1;
-  let scale = 8 * beat;
-
+  let scale = size * beat;
   return new Vector(x * scale, y * scale).add(center);
 };
 
-// Frases lindas
-let frases = [
-  "Te quiero 💕",
-  "Eres importante para mí 🌟",
-  "Sos mi felicidad 💖",
-  "Gracias por existir ✨",
-  "Siempre contigo 💞",
-  "Eres único/a 💝"
-];
-let frasesDesbloqueadas = [];
-let fraseIndex = 0;
-let lastChange = 0;
-
-// Regalo 🎁
-let regalo = new Vector(
-  Math.random() * (canvas.width - 50) + 25,
-  Math.random() * (canvas.height - 50) + 25
-);
-let regaloRadio = 25;
-let regaloToques = 0;
-let regaloDesbloqueado = false;
-
-// Corazones que caen ❤️
-let corazones = [];
-for (let i = 0; i < 10; i++) {
-  corazones.push({
-    x: Math.random() * canvas.width,
-    y: Math.random() * -canvas.height,
-    speed: 2 + Math.random() * 2,
-    caught: false
-  });
-}
+// Estados
+let state = "start"; // start | playing | win | lose
 let puntos = 0;
+let corazones = [];
+let startTime = null;
+let timerLimit = 20;
+let objetivo = 10;
 
-// Timer 10s
-let startTime = Date.now();
-let mostrarExplosion = false;
-let timerLimit = 10;
+// Crear corazones
+function resetCorazones() {
+  corazones = [];
+  for (let i = 0; i < 15; i++) {
+    corazones.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      speed: 2 + Math.random() * 2,
+      caught: false
+    });
+  }
+}
+
+// Reiniciar juego
+function resetGame() {
+  puntos = 0;
+  resetCorazones();
+  startTime = Date.now();
+  state = "playing";
+}
+
+// Clicks para empezar / reiniciar
+canvas.addEventListener("click", () => {
+  if (state === "start") {
+    resetGame();
+  } else if (state === "win" || state === "lose") {
+    state = "start";
+  }
+});
 
 function draw(time) {
-  let elapsed = (Date.now() - startTime) / 1000;
-  if (elapsed >= timerLimit) {
-    mostrarExplosion = true;
-  }
-
-  ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+  ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (!mostrarExplosion) {
-    // suavizar movimiento corazón al mouse
+  if (state === "start") {
+    ctx.fillStyle = "white";
+    ctx.font = "bold 40px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Agarra los corazones ❤️", canvas.width / 2, canvas.height / 2 - 40);
+    ctx.font = "30px Arial";
+    ctx.fillText(`Objetivo: ${objetivo} puntos en ${timerLimit} segundos`, canvas.width / 2, canvas.height / 2);
+    ctx.font = "25px Arial";
+    ctx.fillText("Haz click para comenzar", canvas.width / 2, canvas.height / 2 + 60);
+  }
+
+  else if (state === "playing") {
+    let elapsed = (Date.now() - startTime) / 1000;
+    if (elapsed >= timerLimit) {
+      state = puntos >= objetivo ? "win" : "lose";
+    }
+
     origin = origin.add(io.mouse.subtract(origin).scale(0.05));
 
-    // Dibujar corazón
-    ctx.shadowBlur = 30;
+    // Corazón jugador
+    ctx.shadowBlur = 20;
     ctx.shadowColor = "red";
     ctx.strokeStyle = "red";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    for (let rad = 0; rad < Math.PI * 2; rad += 0.02) {
-      let p = polar(rad, time, origin);
+    for (let rad = 0; rad < Math.PI * 2; rad += 0.05) {
+      let p = polar(rad, time, origin, 5); // más chico
       if (rad === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
     }
@@ -110,24 +102,21 @@ function draw(time) {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Corazones cayendo
-    ctx.font = "30px Arial";
+    // Corazones que caen
+    ctx.font = "28px Arial";
     ctx.textAlign = "center";
     corazones.forEach(c => {
       if (!c.caught) {
         ctx.fillText("❤️", c.x, c.y);
         c.y += c.speed;
 
-        // Colisión con el corazón central
         let dx = origin.x - c.x;
         let dy = origin.y - c.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 40) {
+        if (Math.sqrt(dx*dx + dy*dy) < 30) {
           c.caught = true;
           puntos++;
-          frasesDesbloqueadas.push("Nuevo corazón atrapado 💞 (" + puntos + ")");
         }
 
-        // Reaparecer si sale
         if (c.y > canvas.height + 30) {
           c.x = Math.random() * canvas.width;
           c.y = -30;
@@ -136,59 +125,60 @@ function draw(time) {
       }
     });
 
-    // Regalo 🎁
-    if (!regaloDesbloqueado) {
-      ctx.fillText("🎁", regalo.x, regalo.y);
-      let dx = origin.x - regalo.x;
-      let dy = origin.y - regalo.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 50) {
-        regaloToques++;
-        if (regaloToques >= 3) {
-          regaloDesbloqueado = true;
-          frasesDesbloqueadas.push("🎁 Has desbloqueado un mensaje secreto 💘");
-        }
-      }
-    }
-
-    // Frases
-    if (time - lastChange > 1500) {
-      fraseIndex = (fraseIndex + 1) % (frases.length + frasesDesbloqueadas.length);
-      lastChange = time;
-    }
-    let fraseActual =
-      fraseIndex < frases.length
-        ? frases[fraseIndex]
-        : frasesDesbloqueadas[fraseIndex - frases.length];
-    ctx.fillStyle = "white";
-    ctx.font = "italic 22px 'Comic Sans MS', cursive";
-    ctx.fillText(fraseActual, origin.x, origin.y + 150);
-
-    // Temporizador digital
-    ctx.fillStyle = "#00FF00";
-    ctx.font = "bold 60px 'Courier New', monospace";
-    ctx.textAlign = "right";
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = "black";
-    let timeLeft = Math.max(0, (timerLimit - elapsed)).toFixed(1);
-    ctx.fillText(timeLeft + "s", canvas.width - 30, 70);
-    ctx.shadowBlur = 0;
-
     // Puntaje
     ctx.fillStyle = "yellow";
-    ctx.font = "20px 'Courier New', monospace";
+    ctx.font = "22px Courier New";
     ctx.textAlign = "left";
     ctx.fillText("Puntos ❤️: " + puntos, 20, 40);
-  } else {
-    // Explosión de "te amo"
+
+    // Temporizador
+    let timeLeft = Math.max(0, (timerLimit - elapsed)).toFixed(1);
+    ctx.fillStyle = "#00FF00";
+    ctx.font = "bold 50px 'Courier New', monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(timeLeft + "s", canvas.width - 30, 60);
+  }
+
+  else if (state === "win") {
     ctx.fillStyle = "red";
-    ctx.font = "20px Arial";
+    ctx.font = "bold 40px Arial";
     ctx.textAlign = "center";
-    for (let i = 0; i < 400; i++) {
+    ctx.fillText("Yeah, te amo", canvas.width/2, 80);
+
+    ctx.font = "28px Arial";
+    ctx.fillStyle = "white";
+    ctx.fillText("RAWR", canvas.width/2, 130);
+
+    // Estallido legible
+    ctx.fillStyle = "pink";
+    ctx.font = "bold 26px 'Comic Sans MS'";
+    for (let i = 0; i < 150; i++) {
       let x = Math.random() * canvas.width;
-      let y = Math.random() * canvas.height;
-      let extra = puntos > 5 ? " 💕🌹" : "";
-      ctx.fillText("te amo ❤️" + extra, x, y);
+      let y = Math.random() * (canvas.height-150) + 150;
+      ctx.fillText("te amo ❤️", x, y);
     }
+
+    // Mensaje central fijo
+    ctx.fillStyle = "yellow";
+    ctx.font = "bold 50px Arial";
+    ctx.fillText("mosho 💖", canvas.width/2, canvas.height/2);
+
+    ctx.fillStyle = "white";
+    ctx.font = "24px Arial";
+    ctx.fillText("Haz click para volver a jugar", canvas.width/2, canvas.height-50);
+  }
+
+  else if (state === "lose") {
+    ctx.fillStyle = "white";
+    ctx.font = "bold 40px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Se acabó el tiempo ⏳", canvas.width/2, canvas.height/2 - 40);
+    ctx.font = "30px Arial";
+    ctx.fillStyle = "red";
+    ctx.fillText("No alcanzaste los 10 puntos 😢", canvas.width/2, canvas.height/2);
+    ctx.fillStyle = "yellow";
+    ctx.font = "24px Arial";
+    ctx.fillText("Haz click para intentarlo otra vez", canvas.width/2, canvas.height/2 + 60);
   }
 
   requestAnimationFrame(draw);
